@@ -55,7 +55,7 @@ createdb renen
 psql renen < lib/database/schema.sql
 ```
 
-### 2. Configure Environment
+### 2. Configure Environmentss
 
 ```bash
 cp .env.example .env.local
