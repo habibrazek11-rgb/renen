@@ -1,18 +1,25 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# RENEN - Investment Evaluation Platform
 
-## Getting Started
+**Structured intake + LLM analysis + Deterministic scoring = Reliable, defensible investment decisions**
 
-First, run the development server:
+RENEN is a Next.js application that automates startup idea evaluation using a combination of AI-powered analysis and deterministic scoring rules. Built for investment firms and accelerators who need reliable, auditable, investor-defensible feasibility assessments.
+
+## 🎯 Core Features
+
+- **Smart Idea Intake**: Text descriptions, file uploads (PDF/DOCX/PPTX), and custom questionnaires
+- **LLM Analysis**: Automatic extraction of structured fields (problem, solution, market, team, traction, risks)
+- **Deterministic Scoring**: Category-based evaluation with configurable weights and tier bands
+- **Segment Routing**: Automatic Pass/Revise/Reject decisions with "why it matched" reasoning
+- **Human Review Workflow**: Built-in guardrails - nothing auto-publishes without review
+- **PDF Reports**: Professional feasibility reports generated server-side
+- **Analytics**: Track every action with analytics-ready event schema
+
+## 🚀 Quick Start
+
+### 1. Install Dependencies
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+npm install
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
