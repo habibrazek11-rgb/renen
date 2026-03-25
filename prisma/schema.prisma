@@ -1,0 +1,452 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Workspace & Members ────────────────────────────────────────────────────
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  webhookSecret String? 
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships Membership[]
+  projects    Project[]
+  funnels     Funnel[]
+  leads       Lead[]
+  events      EventLog[]
+  webhooks    WebhookConfig[]
+}
+
+model Membership {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String   // references users.json id (Phase 1) or DB user (Phase 2)
+  role        MemberRole
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([workspaceId])
+}
+
+enum MemberRole {
+  owner
+  admin
+  editor
+  viewer
+}
+
+// ─── Projects & Funnels ─────────────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  funnels     Funnel[]
+
+  @@index([workspaceId])
+}
+
+model Funnel {
+  id          String   @id @default(cuid())
+  workspaceId String
+  projectId   String?
+  name        String
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project     Project?       @relation(fields: [projectId], references: [id])
+  versions    FunnelVersion[]
+  leads       Lead[]
+  segments    Segment[]
+  abVariants  ABVariant[]
+
+  @@index([workspaceId])
+  @@index([slug])
+}
+
+model FunnelVersion {
+  id           String   @id @default(cuid())
+  funnelId     String
+  version      Int
+  isDraft      Boolean  @default(true)
+  isPublished  Boolean  @default(false)
+  publishedAt  DateTime?
+  landingPage  Json?    // LandingPageConfig
+  brandTheme   Json?    // BrandTheme
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  funnel       Funnel        @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  assessment   Assessment?
+  submissions  Submission[]
+
+  @@unique([funnelId, version])
+  @@index([funnelId])
+}
+
+// ─── Assessment & Questions ──────────────────────────────────────────────────
+
+model Assessment {
+  id              String   @id @default(cuid())
+  funnelVersionId String   @unique
+  name            String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  funnelVersion   FunnelVersion  @relation(fields: [funnelVersionId], references: [id], onDelete: Cascade)
+  questions       Question[]
+  scoreCategories ScoreCategory[]
+  scoreTiers      ScoreTier[]
+}
+
+model Question {
+  id           String       @id @default(cuid())
+  assessmentId String
+  order        Int
+  type         QuestionType
+  text         String
+  required     Boolean      @default(true)
+  scaleMin     Int?
+  scaleMax     Int?
+  scaleMinLabel String?
+  scaleMaxLabel String?
+  createdAt    DateTime     @default(now())
+
+  assessment   Assessment     @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  answerOptions AnswerOption[]
+  logicRules   LogicRule[]    @relation("SourceQuestion")
+  targetRules  LogicRule[]    @relation("TargetQuestion")
+
+  @@index([assessmentId, order])
+}
+
+enum QuestionType {
+  single_choice
+  multi_choice
+  scale
+  short_text
+  email
+}
+
+model AnswerOption {
+  id          String   @id @default(cuid())
+  questionId  String
+  text        String
+  order       Int
+  points      Int      @default(0)
+  categoryId  String?  // which ScoreCategory this points to
+
+  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model LogicRule {
+  id               String        @id @default(cuid())
+  sourceQuestionId String
+  targetQuestionId String
+  action           LogicAction
+  condition        Json          // { answerOptionId: string } or { value: number, operator: string }
+  createdAt        DateTime      @default(now())
+
+  sourceQuestion   Question @relation("SourceQuestion", fields: [sourceQuestionId], references: [id], onDelete: Cascade)
+  targetQuestion   Question @relation("TargetQuestion", fields: [targetQuestionId], references: [id], onDelete: Cascade)
+}
+
+enum LogicAction {
+  show
+  hide
+  jump
+}
+
+// ─── Scoring ─────────────────────────────────────────────────────────────────
+
+model ScoreCategory {
+  id           String   @id @default(cuid())
+  assessmentId String
+  name         String
+  maxScore     Int
+  weight       Float    @default(1.0)
+  createdAt    DateTime @default(now())
+
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+model ScoreTier {
+  id           String   @id @default(cuid())
+  assessmentId String
+  name         String
+  label        String
+  minScore     Int
+  maxScore     Int
+  createdAt    DateTime @default(now())
+
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  @@index([assessmentId])
+}
+
+// ─── Segments & Rules ────────────────────────────────────────────────────────
+
+model Segment {
+  id             String   @id @default(cuid())
+  funnelId       String
+  name           String
+  description    String?
+  priority       Int      @default(0)
+  reasonTemplate String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  funnel         Funnel        @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  rules          SegmentRule[]
+  resultPage     ResultPage?
+  leads          Lead[]
+
+  @@index([funnelId, priority])
+}
+
+model SegmentRule {
+  id          String          @id @default(cuid())
+  segmentId   String
+  type        SegmentRuleType
+  category    String?         // for category_threshold type
+  operator    RuleOperator
+  value       Float
+  questionId  String?         // for answer_match type
+  optionId    String?         // for answer_match type
+  createdAt   DateTime        @default(now())
+
+  segment     Segment @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+
+  @@index([segmentId])
+}
+
+enum SegmentRuleType {
+  total_score
+  category_threshold
+  answer_match
+}
+
+enum RuleOperator {
+  gte
+  lte
+  eq
+  gt
+  lt
+}
+
+// ─── Result Pages & CTA ──────────────────────────────────────────────────────
+
+model ResultPage {
+  id          String   @id @default(cuid())
+  segmentId   String   @unique
+  headline    String
+  body        String   @db.Text
+  showScore   Boolean  @default(true)
+  showCategories Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  segment     Segment    @relation(fields: [segmentId], references: [id], onDelete: Cascade)
+  ctaConfig   CTAConfig?
+  emailTemplate EmailTemplate?
+}
+
+model CTAConfig {
+  id           String   @id @default(cuid())
+  resultPageId String   @unique
+  type         CTAType
+  label        String
+  url          String?
+  abVariantLabel String? // alternative label for A/B test
+  createdAt    DateTime @default(now())
+
+  resultPage   ResultPage @relation(fields: [resultPageId], references: [id], onDelete: Cascade)
+}
+
+enum CTAType {
+  book
+  buy
+  whatsapp
+  nurture
+  link
+}
+
+model EmailTemplate {
+  id           String   @id @default(cuid())
+  resultPageId String   @unique
+  subject      String
+  body         String   @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  resultPage   ResultPage @relation(fields: [resultPageId], references: [id], onDelete: Cascade)
+}
+
+// ─── Leads & Submissions ─────────────────────────────────────────────────────
+
+model Lead {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  funnelId      String
+  segmentId     String?
+  email         String?
+  name          String?
+  anonymousId   String?
+  abVariant     String?
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  funnel        Funnel      @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  segment       Segment?    @relation(fields: [segmentId], references: [id])
+  submissions   Submission[]
+
+  @@index([workspaceId])
+  @@index([funnelId])
+  @@index([email])
+}
+
+model Submission {
+  id              String   @id @default(cuid())
+  leadId          String
+  funnelVersionId String
+  completedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  lead            Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  funnelVersion   FunnelVersion     @relation(fields: [funnelVersionId], references: [id])
+  answers         SubmissionAnswer[]
+  snapshot        ScoringSnapshot?
+
+  @@index([leadId])
+  @@index([funnelVersionId])
+}
+
+model SubmissionAnswer {
+  id           String   @id @default(cuid())
+  submissionId String
+  questionId   String
+  value        Json     // string | string[] | number
+  createdAt    DateTime @default(now())
+
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+}
+
+model ScoringSnapshot {
+  id              String   @id @default(cuid())
+  submissionId    String   @unique
+  totalScore      Int
+  categoryScores  Json     // Record<string, number>
+  tier            String
+  segmentId       String?
+  segmentName     String?
+  matchedRules    Json?    // array of matched rule descriptions
+  decisionReason  String?
+  createdAt       DateTime @default(now())
+
+  submission      Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+
+// ─── Analytics ───────────────────────────────────────────────────────────────
+
+model EventLog {
+  id          String   @id @default(cuid())
+  workspaceId String?
+  funnelId    String?
+  leadId      String?
+  submissionId String?
+  anonymousId String?
+  eventType   String
+  eventData   Json?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id])
+
+  @@index([workspaceId])
+  @@index([funnelId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+// ─── A/B Testing ─────────────────────────────────────────────────────────────
+
+model ABVariant {
+  id          String   @id @default(cuid())
+  funnelId    String
+  testId      String
+  anonymousId String
+  variant     String   // 'A' | 'B'
+  createdAt   DateTime @default(now())
+
+  funnel      Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@unique([testId, anonymousId])
+  @@index([funnelId])
+}
+
+// ─── Webhooks ────────────────────────────────────────────────────────────────
+
+model WebhookConfig {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  url         String
+  events      String[] // event types to trigger on
+  secret      String
+  maxAttempts Int      @default(3)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries  WebhookDelivery[]
+
+  @@index([workspaceId])
+}
+
+model WebhookDelivery {
+  id            String   @id @default(cuid())
+  webhookId     String
+  eventType     String
+  payload       Json
+  statusCode    Int?
+  responseBody  String?
+  attempt       Int      @default(1)
+  success       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  webhook       WebhookConfig @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId])
+}

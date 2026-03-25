@@ -1,6 +1,55 @@
-import type { EvaluationSnapshot, Submission } from "@/lib/types";
+// PDF Report Generator — JSX component for @react-pdf/renderer
+// Active implementation: see pdf-generator-doc.tsx
+// This file provides a standalone PDF renderer using the legacy EvaluationSnapshot shape
+
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { format } from "date-fns";
+
+// Inline types (no external dependency)
+interface RiskFlag {
+  type: string;
+  detail: string;
+}
+
+interface ExtractedFields {
+  idea_summary: string;
+  problem: { statement: string; severity: string };
+  solution: { what: string; differentiation: string };
+  market: { customer: string; tam_note: string; competition: string };
+  traction: { signals: string[]; metrics: string[] };
+  team: { background: string; gaps: string[] };
+  financials: { model: string; unit_economics_note: string };
+  risks?: RiskFlag[];
+  confidence: number;
+  missing_info_questions?: string[];
+  score_suggestions?: Record<string, number>;
+}
+
+interface EvaluationSnapshot {
+  id: string;
+  submission_id: string;
+  scoring_model_id: string;
+  extracted_fields: ExtractedFields;
+  category_scores: Record<string, number>;
+  total_score: number;
+  tier: string;
+  segment_id: string | null;
+  segment_name: string | null;
+  segment_outcome: string | null;
+  decision_reason: string | null;
+  llm_confidence: number | null;
+  risk_flags: RiskFlag[] | null;
+  missing_info_questions: string[] | null;
+  created_at: string;
+}
+
+interface Submission {
+  id: string;
+  submitter_name: string;
+  submitter_email: string;
+  idea_text: string;
+  created_at: string;
+}
 
 // PDF Styles
 const styles = StyleSheet.create({
@@ -75,15 +124,6 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     borderTop: "2 solid #ff36a2",
   },
-  badge: {
-    padding: "4 8",
-    backgroundColor: "#ff36a2",
-    color: "#ffffff",
-    borderRadius: 4,
-    fontSize: 10,
-    fontWeight: "bold",
-    marginTop: 5,
-  },
   riskBox: {
     backgroundColor: "#fee",
     padding: 10,
@@ -143,12 +183,12 @@ export function generateReportPDF(data: ReportData) {
           <Text style={styles.text}>{extracted_fields.idea_summary}</Text>
           <Text style={styles.text}>
             <Text style={{ fontWeight: "bold" }}>Outcome: </Text>
-            {evaluation.segment_outcome.toUpperCase()} (Score: {evaluation.total_score}
-            /100)
+            {(evaluation.segment_outcome ?? "N/A").toUpperCase()} (Score:{" "}
+            {evaluation.total_score}/100)
           </Text>
           <Text style={styles.text}>
             <Text style={{ fontWeight: "bold" }}>Decision: </Text>
-            {evaluation.decision_reason}
+            {evaluation.decision_reason ?? "N/A"}
           </Text>
         </View>
 
@@ -160,7 +200,7 @@ export function generateReportPDF(data: ReportData) {
               <Text style={styles.scoreLabel}>
                 {category.charAt(0).toUpperCase() + category.slice(1)}
               </Text>
-              <Text style={styles.scoreValue}>{score}</Text>
+              <Text style={styles.scoreValue}>{score as number}</Text>
             </View>
           ))}
           <Text style={styles.totalScore}>
@@ -198,15 +238,15 @@ export function generateReportPDF(data: ReportData) {
 
         {/* Traction */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Traction & Metrics</Text>
+          <Text style={styles.sectionTitle}>Traction &amp; Metrics</Text>
           <Text style={styles.label}>Signals:</Text>
-          {extracted_fields.traction.signals.map((signal, i) => (
+          {extracted_fields.traction.signals.map((signal: string, i: number) => (
             <Text key={i} style={styles.text}>
               • {signal}
             </Text>
           ))}
           <Text style={styles.label}>Key Metrics:</Text>
-          {extracted_fields.traction.metrics.map((metric, i) => (
+          {extracted_fields.traction.metrics.map((metric: string, i: number) => (
             <Text key={i} style={styles.text}>
               • {metric}
             </Text>
@@ -220,7 +260,7 @@ export function generateReportPDF(data: ReportData) {
           {extracted_fields.team.gaps.length > 0 && (
             <>
               <Text style={styles.label}>Team Gaps:</Text>
-              {extracted_fields.team.gaps.map((gap, i) => (
+              {extracted_fields.team.gaps.map((gap: string, i: number) => (
                 <Text key={i} style={styles.text}>
                   • {gap}
                 </Text>
@@ -242,7 +282,7 @@ export function generateReportPDF(data: ReportData) {
         {evaluation.risk_flags && evaluation.risk_flags.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Risk Assessment</Text>
-            {evaluation.risk_flags.map((risk, i) => (
+            {evaluation.risk_flags.map((risk: RiskFlag, i: number) => (
               <View key={i} style={styles.riskBox}>
                 <Text style={styles.riskLabel}>{risk.type.toUpperCase()}</Text>
                 <Text style={styles.text}>{risk.detail}</Text>
@@ -256,7 +296,7 @@ export function generateReportPDF(data: ReportData) {
           evaluation.missing_info_questions.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Additional Information Needed</Text>
-              {evaluation.missing_info_questions.map((question, i) => (
+              {evaluation.missing_info_questions.map((question: string, i: number) => (
                 <Text key={i} style={styles.text}>
                   {i + 1}. {question}
                 </Text>

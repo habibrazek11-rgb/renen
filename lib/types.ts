@@ -1,7 +1,9 @@
 // RENEN TypeScript Types
 // Matches database schema
 
-export type UserRole = 'owner' | 'admin' | 'reviewer';
+export type UserRole = 'owner' | 'admin' | 'reviewer' | 'company';
+
+export type SimplifiedRole = 'admin' | 'company';
 
 export type SubmissionStatus = 
   | 'submitted' 
@@ -201,9 +203,9 @@ export interface EvaluationSnapshot {
   total_score: number;
   tier: string;
   segment_id: string | null;
-  segment_name: string;
-  segment_outcome: string;
-  decision_reason: string;
+  segment_name: string | null;
+  segment_outcome: string | null;
+  decision_reason: string | null;
   llm_confidence: number | null;
   risk_flags: RiskFlag[] | null;
   missing_info_questions: string[] | null;
@@ -235,4 +237,25 @@ export interface Event {
 export interface SubmissionWithDetails extends Submission {
   evaluation?: EvaluationSnapshot;
   answers?: SubmissionAnswers;
+}
+
+// Mock Authentication Types
+
+export interface MockUser {
+  id: string;
+  name: string;
+  email: string;
+  role: SimplifiedRole;
+  company_name?: string;
+}
+
+// Simplified Feasibility Response
+
+export interface FeasibilityResponse {
+  status: "feasible" | "not_feasible";
+  risk_level: "low" | "medium" | "high";
+  market_potential: "low" | "medium" | "high";
+  strengths: string[];
+  weaknesses: string[];
+  recommendations: string[];
 }

@@ -1,0 +1,34 @@
+[
+    {
+        "id": "user-owner-1",
+        "email": "owner@renen.app",
+        "passwordHash": "$2b$10$wlleNnVPQH/47fvXANpkX.bieDvXZw6LMImre8wqPyK/Mz3Sm6/gK",
+        "name": "Habib Owner",
+        "role": "owner",
+        "workspaceId": "ws-renen-demo"
+    },
+    {
+        "id": "user-admin-1",
+        "email": "admin@renen.app",
+        "passwordHash": "$2b$10$wlleNnVPQH/47fvXANpkX.bieDvXZw6LMImre8wqPyK/Mz3Sm6/gK",
+        "name": "Admin User",
+        "role": "admin",
+        "workspaceId": "ws-renen-demo"
+    },
+    {
+        "id": "user-editor-1",
+        "email": "editor@renen.app",
+        "passwordHash": "$2b$10$wlleNnVPQH/47fvXANpkX.bieDvXZw6LMImre8wqPyK/Mz3Sm6/gK",
+        "name": "Editor User",
+        "role": "editor",
+        "workspaceId": "ws-renen-demo"
+    },
+    {
+        "id": "user-viewer-1",
+        "email": "viewer@renen.app",
+        "passwordHash": "$2b$10$wlleNnVPQH/47fvXANpkX.bieDvXZw6LMImre8wqPyK/Mz3Sm6/gK",
+        "name": "Viewer User",
+        "role": "viewer",
+        "workspaceId": "ws-renen-demo"
+    }
+]

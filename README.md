@@ -1,43 +1,144 @@
-# RENEN - Investment Evaluation Platform
+# RENEN — Assessment Funnel Platform
 
-**Structured intake + LLM analysis + Deterministic scoring = Reliable, defensible investment decisions**
+A production-ready Next.js 16 (App Router) platform for building, publishing, and analyzing assessment funnels with deterministic scoring, segment routing, and lead capture.
 
-RENEN is a Next.js application that automates startup idea evaluation using a combination of AI-powered analysis and deterministic scoring rules. Built for investment firms and accelerators who need reliable, auditable, investor-defensible feasibility assessments.
-
-## 🎯 Core Features
-
-- **Smart Idea Intake**: Text descriptions, file uploads (PDF/DOCX/PPTX), and custom questionnaires
-- **LLM Analysis**: Automatic extraction of structured fields (problem, solution, market, team, traction, risks)
-- **Deterministic Scoring**: Category-based evaluation with configurable weights and tier bands
-- **Segment Routing**: Automatic Pass/Revise/Reject decisions with "why it matched" reasoning
-- **Human Review Workflow**: Built-in guardrails - nothing auto-publishes without review
-- **PDF Reports**: Professional feasibility reports generated server-side
-- **Analytics**: Track every action with analytics-ready event schema
-
-## 🚀 Quick Start
-
-### 1. Install Dependencies
+## Quick Start
 
 ```bash
+# 1. Install dependencies
 npm install
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+# 2. Set up environment variables
+cp .env.example .env.local
+# Fill in DATABASE_URL, JWT_SECRET, WEBHOOK_SECRET
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+# 3. Push schema to DB
+npm run db:push
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+# 4. Seed with demo data
+npm run db:seed
 
-## Learn More
+# 5. Start dev server
+npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+Visit `http://localhost:3000` and log in with `owner@renen.app` / `password123`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+app/
+├── (dashboard)/          # Protected dashboard routes
+│   ├── dashboard/        # Main dashboard
+│   ├── funnels/          # Funnel list + detail
+│   ├── leads/            # Leads table + CSV export
+│   ├── analytics/        # Event-derived analytics
+│   ├── builder/[id]/     # Funnel builder hub
+│   ├── ai/               # AI copilot pages
+│   └── integrations/     # Webhooks
+├── f/[slug]/             # Public funnel runtime
+│   ├── page.tsx          # Landing page
+│   ├── assessment/       # Assessment flow
+│   └── result/[id]/      # Result page + CTA + PDF
+├── api/                  # API routes
+│   ├── auth/             # login, logout, me
+│   ├── funnels/          # CRUD + publish
+│   ├── submissions/      # Create + PDF download
+│   ├── leads/            # List + CSV + detail
+│   ├── analytics/        # Event aggregation
+│   ├── assessments/      # Public assessment data
+│   └── ai/               # AI copilot endpoints
+└── login/                # Login page
 
-## Deploy on Vercel
+lib/
+├── auth/                 # Auth system (swappable)
+│   ├── types.ts          # AuthUser, SessionPayload, RBAC
+│   ├── provider.ts       # IUserProvider interface
+│   ├── json-provider.ts  # JSON file implementation
+│   └── session.ts        # JWT httpOnly cookies
+├── db.ts                 # Prisma singleton
+└── services/
+    ├── scoring-engine.ts  # Deterministic scoring
+    ├── segment-router.ts  # Precedence-based routing
+    ├── event-logger.ts    # Analytics event logging
+    ├── email-stub.ts      # Email (swappable)
+    ├── pdf-generator.ts   # PDF reports
+    ├── webhook-sender.ts  # HMAC-signed webhooks
+    ├── ab-testing.ts      # A/B variant assignment
+    └── ai-copilot.ts      # AI copilot (swappable)
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Auth System
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The auth system uses **httpOnly JWT cookies** with a swappable provider pattern.
+
+**Current:** JSON file (`data/users.json`) with bcrypt passwords  
+**To swap to DB auth:** Implement `IUserProvider` and replace the export in `lib/auth/json-provider.ts`
+
+```typescript
+// lib/auth/db-provider.ts
+export class DbUserProvider implements IUserProvider {
+  async findByEmail(email: string) { /* query DB */ }
+  async verifyPassword(user, password) { /* bcrypt.compare */ }
+}
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `DATABASE_URL` | Neon PostgreSQL connection string |
+| `JWT_SECRET` | Secret for signing session JWTs (min 32 chars) |
+| `WEBHOOK_SECRET` | Default HMAC secret for webhook signing |
+| `NEXT_PUBLIC_APP_URL` | Public app URL (e.g. `https://renen.app`) |
+
+## Database Scripts
+
+```bash
+npm run db:push      # Push schema to DB (no migration files)
+npm run db:migrate   # Create migration files + push
+npm run db:seed      # Seed with demo data
+npm run db:studio    # Open Prisma Studio
+npm run db:generate  # Regenerate Prisma client
+```
+
+## Public Funnel URL
+
+Published funnels are accessible at `/f/[slug]`. The demo funnel is at:
+```
+http://localhost:3000/f/business-growth-assessment
+```
+
+## Scoring Engine
+
+The scoring engine is **deterministic** — same answers always produce the same scores.
+
+- Category scores are capped at `maxScore`
+- Weighted sum determines `totalScore`
+- Tiers are assigned by score range
+
+## Segment Router
+
+Segments are assigned by **precedence**:
+1. `answer_match` (highest)
+2. `category_threshold`
+3. `total_score` (lowest)
+
+Within the same precedence, lower `priority` number wins. All rules within a segment use **AND logic**.
+
+## Services (Swappable)
+
+| Service | Current | Swap To |
+|---------|---------|---------|
+| Email | Console stub | Resend / SendGrid |
+| AI Copilot | Mock heuristics | OpenAI / Claude |
+| Auth | JSON file | Database |
+
+## Demo Credentials
+
+| Email | Password | Role |
+|-------|----------|------|
+| owner@renen.app | password123 | Owner |
+| admin@renen.app | password123 | Admin |
+| editor@renen.app | password123 | Editor |
+| viewer@renen.app | password123 | Viewer |

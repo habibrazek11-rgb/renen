@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,29 +12,85 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Sparkles, Upload, CheckCircle2 } from "lucide-react";
+import { Sparkles, Upload, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { getCurrentUser } from "@/lib/mock-auth";
+import { saveMockSubmission } from "@/lib/mock-data";
+import { evaluateSubmission } from "@/lib/services/evaluation-orchestrator";
+import type { SubmissionWithDetails, Submission } from "@/lib/types";
 
 export default function SubmitPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [newSubId, setNewSubId] = useState<string | null>(null);
+  const user = getCurrentUser();
+
   const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    companyName: "",
+    companyName: user?.company_name || "",
     idea: "",
-    stage: "",
     website: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (!user) {
+      router.push("/");
+    }
+  }, [user, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, this would call the API
-    console.log("Form submitted:", formData);
-    setSubmitted(true);
+    if (!user) return;
+
+    setLoading(true);
+
+    // Create a new submission object
+    const submissionId = `sub-${Math.random().toString(36).substr(2, 9)}`;
+
+    const submission: Submission = {
+      id: submissionId,
+      funnel_id: "default-funnel",
+      workspace_id: "default-workspace",
+      submitter_email: user.email,
+      submitter_name: user.name,
+      idea_text: formData.idea,
+      file_urls: null,
+      status: "submitted",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    // Use the orchestrator with mock mode
+    // Note: evaluateWithLLM in the orchestrator can be swapped with mockEvaluateWithLLM
+    const result = await evaluateSubmission({
+      submission,
+      use_mock: true
+    });
+
+    if (result.success) {
+      const fullSubmission: SubmissionWithDetails = {
+        ...submission,
+        status: "evaluated",
+        evaluation: {
+          ...result.snapshot,
+          id: `eval-${Math.random().toString(36).substr(2, 9)}`,
+          created_at: new Date().toISOString(),
+        } as any,
+      };
+
+      saveMockSubmission(fullSubmission);
+      setNewSubId(submissionId);
+      setSubmitted(true);
+    } else {
+      console.error("Evaluation failed:", result.error);
+    }
+
+    setLoading(false);
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     setFormData({
       ...formData,
@@ -42,181 +98,109 @@ export default function SubmitPage() {
     });
   };
 
+  if (!user) return null;
+
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card">
+    <div className="min-h-screen gradient-bg">
+      <header className="sticky top-0 z-50 glass border-b border-white/20 backdrop-blur-xl">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-[#ff36a2] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#ff36a2] to-[#ff6b9d] flex items-center justify-center">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <h1 className="text-2xl font-bold">RENEN</h1>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-[#ff36a2] to-[#ff6b9d] bg-clip-text text-transparent">
+              RENEN
+            </h1>
           </Link>
+          <div className="text-sm font-medium text-muted-foreground italic">
+            Submission for {user.name}
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-3xl mx-auto">
           {!submitted ? (
-            <Card className="bg-card">
+            <Card className="border-2 border-pink-100 shadow-xl shadow-pink-500/5">
               <CardHeader>
-                <CardTitle className="text-3xl">Submit Your Startup Idea</CardTitle>
-                <CardDescription>
-                  Tell us about your startup. We&apos;ll evaluate your submission and get back
-                  to you within 48 hours.
+                <CardTitle className="text-3xl font-bold">Submit Your Business Idea</CardTitle>
+                <CardDescription className="text-base">
+                  Describe your concept in detail. Our AI will analyze feasibility, risks, and market potential.
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  {/* Personal Information */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="name">Your Name *</Label>
-                        <Input
-                          id="name"
-                          name="name"
-                          placeholder="John Doe"
-                          value={formData.name}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="email">Email Address *</Label>
-                        <Input
-                          id="email"
-                          name="email"
-                          type="email"
-                          placeholder="john@startup.com"
-                          value={formData.email}
-                          onChange={handleChange}
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Company Information */}
+                <form onSubmit={handleSubmit} className="space-y-8">
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label htmlFor="companyName">Company Name *</Label>
+                      <Label htmlFor="companyName" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Company Name / Project Name</Label>
                       <Input
                         id="companyName"
                         name="companyName"
-                        placeholder="Your Startup Inc."
+                        placeholder="e.g. Acme AI Solutions"
                         value={formData.companyName}
                         onChange={handleChange}
+                        className="bg-gray-50/50 border-gray-200 h-12 text-lg"
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="website">Website (Optional)</Label>
-                      <Input
-                        id="website"
-                        name="website"
-                        type="url"
-                        placeholder="https://yourstartup.com"
-                        value={formData.website}
-                        onChange={handleChange}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="stage">Current Stage *</Label>
-                      <select
-                        id="stage"
-                        name="stage"
-                        value={formData.stage}
+                      <Label htmlFor="idea" className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Describe the Business Concept</Label>
+                      <Textarea
+                        id="idea"
+                        name="idea"
+                        placeholder="What problem are you solving? Who is the customer? How do you make money? What is your secret sauce?"
+                        value={formData.idea}
                         onChange={handleChange}
                         required
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <option value="">Select a stage</option>
-                        <option value="idea">Idea</option>
-                        <option value="mvp">MVP</option>
-                        <option value="early-revenue">Early Revenue</option>
-                        <option value="growth">Growth</option>
-                        <option value="scale">Scale</option>
-                      </select>
+                        rows={12}
+                        className="bg-gray-50/50 border-gray-200 text-lg resize-none p-4"
+                      />
                     </div>
                   </div>
 
-                  {/* Idea Description */}
-                  <div className="space-y-2">
-                    <Label htmlFor="idea">Describe Your Startup Idea *</Label>
-                    <Textarea
-                      id="idea"
-                      name="idea"
-                      placeholder="Tell us about your startup. What problem are you solving? Who are your customers? What makes your solution unique? Include any relevant traction, team background, and market insights."
-                      value={formData.idea}
-                      onChange={handleChange}
-                      required
-                      rows={10}
-                      className="resize-none"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Minimum 200 characters. Be as detailed as possible.
-                    </p>
-                  </div>
-
-                  {/* File Upload */}
-                  <div className="space-y-2">
-                    <Label htmlFor="files">Supporting Documents (Optional)</Label>
-                    <div className="flex items-center justify-center w-full">
-                      <label
-                        htmlFor="files"
-                        className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer bg-background hover:bg-muted/50 transition-colors"
-                      >
-                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                          <Upload className="w-8 h-8 mb-2 text-muted-foreground" />
-                          <p className="mb-2 text-sm text-muted-foreground">
-                            <span className="font-semibold">Click to upload</span> or drag
-                            and drop
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            PDF, DOCX, PPTX up to 10MB
-                          </p>
-                        </div>
-                        <input
-                          id="files"
-                          name="files"
-                          type="file"
-                          className="hidden"
-                          multiple
-                          accept=".pdf,.docx,.pptx"
-                        />
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Submit Button */}
-                  <div className="flex justify-end pt-4">
-                    <Button type="submit" size="lg" className="w-full md:w-auto">
-                      Submit Application
+                  <div className="flex justify-end pt-4 border-t">
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className="w-full md:w-auto px-8 h-14 text-lg bg-gradient-to-r from-[#ff36a2] to-[#ff6b9d] shadow-lg shadow-pink-500/20"
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                          Running AI Analysis...
+                        </>
+                      ) : (
+                        <>
+                          Analyze Feasibility
+                          <ArrowRight className="w-5 h-5 ml-2" />
+                        </>
+                      )}
                     </Button>
                   </div>
                 </form>
               </CardContent>
             </Card>
           ) : (
-            <Card className="bg-card text-center">
-              <CardContent className="pt-12 pb-12">
-                <div className="flex flex-col items-center space-y-4">
-                  <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
-                    <CheckCircle2 className="w-10 h-10 text-green-600" />
+            <Card className="border-2 border-green-100 shadow-xl shadow-green-500/5 text-center">
+              <CardContent className="pt-16 pb-16">
+                <div className="flex flex-col items-center space-y-6">
+                  <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+                    <CheckCircle2 className="w-12 h-12 text-green-600" />
                   </div>
-                  <CardTitle className="text-2xl">Application Submitted!</CardTitle>
-                  <CardDescription className="text-base max-w-md">
-                    Thank you for submitting your startup idea. Our team will review your
-                    application and get back to you within 48 hours.
-                  </CardDescription>
-                  <div className="pt-4">
-                    <Button asChild variant="outline">
-                      <Link href="/">Return to Homepage</Link>
+                  <div className="space-y-2">
+                    <CardTitle className="text-3xl font-bold">Analysis Complete!</CardTitle>
+                    <CardDescription className="text-lg max-w-md mx-auto">
+                      Your business feasibility report has been generated and is ready for consultation.
+                    </CardDescription>
+                  </div>
+                  <div className="pt-8 flex flex-col sm:flex-row gap-4">
+                    <Button asChild size="lg" className="bg-[#ff36a2]">
+                      <Link href={`/results/${newSubId}`}>View Feasibility Report</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="lg">
+                      <Link href={user.role === 'admin' ? '/admin' : '/company'}>Go to Dashboard</Link>
                     </Button>
                   </div>
                 </div>
@@ -226,10 +210,9 @@ export default function SubmitPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t mt-12">
-        <div className="container mx-auto px-4 py-6 text-center text-sm text-muted-foreground">
-          <p>© 2026 RENEN. Investment Evaluation, Automated & Defensible.</p>
+      <footer className="border-t mt-12 py-8 bg-gray-50/50">
+        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground italic">
+          <p>© 2026 RENEN. Automated Investment Intelligence.</p>
         </div>
       </footer>
     </div>
