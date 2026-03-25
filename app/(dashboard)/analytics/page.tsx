@@ -1,5 +1,4 @@
 import { getSession } from '@/lib/auth/session';
-import { db } from '@/lib/db';
 import { redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { BarChart3, TrendingUp, Users, MousePointerClick } from 'lucide-react';

@@ -1,7 +1,5 @@
-// Event Logger — writes to EventLog table in DB
-// All analytics are derived from this table
-
-import { db } from '@/lib/db';
+// Event Logger — static in-memory version (no DB)
+import staticDb from '@/lib/static-db';
 
 export type EventType =
   | 'page.viewed'
@@ -30,37 +28,29 @@ export interface LogEventParams {
 
 export async function logEvent(params: LogEventParams): Promise<void> {
   try {
-    await db.eventLog.create({
-      data: {
-        eventType: params.eventType,
-        workspaceId: params.workspaceId,
-        funnelId: params.funnelId,
-        leadId: params.leadId,
-        submissionId: params.submissionId,
-        anonymousId: params.anonymousId,
-        eventData: (params.eventData ?? {}) as Parameters<typeof db.eventLog.create>[0]['data']['eventData'],
-        metadata: (params.metadata ?? {}) as Parameters<typeof db.eventLog.create>[0]['data']['metadata'],
-      },
+    staticDb.logEvent({
+      eventType: params.eventType,
+      workspaceId: params.workspaceId ?? null,
+      funnelId: params.funnelId ?? null,
+      leadId: params.leadId ?? null,
+      submissionId: params.submissionId ?? null,
+      anonymousId: params.anonymousId ?? null,
+      eventData: params.eventData ?? null,
+      createdAt: new Date().toISOString(),
     });
   } catch (err) {
-    // Never throw — analytics failures should not break the app
     console.error('[EventLogger] Failed to log event:', params.eventType, err);
   }
 }
 
 export async function getEventCounts(workspaceId: string, funnelId?: string) {
-  const where = {
-    workspaceId,
-    ...(funnelId ? { funnelId } : {}),
+  const events = staticDb.getEvents(workspaceId, funnelId);
+  const count = (type: string) => events.filter(e => e.eventType === type).length;
+  return {
+    views: count('page.viewed'),
+    starts: count('assessment.started'),
+    completes: count('assessment.completed'),
+    leads: count('lead.created'),
+    ctaClicks: count('cta.clicked'),
   };
-
-  const [views, starts, completes, leads, ctaClicks] = await Promise.all([
-    db.eventLog.count({ where: { ...where, eventType: 'page.viewed' } }),
-    db.eventLog.count({ where: { ...where, eventType: 'assessment.started' } }),
-    db.eventLog.count({ where: { ...where, eventType: 'assessment.completed' } }),
-    db.eventLog.count({ where: { ...where, eventType: 'lead.created' } }),
-    db.eventLog.count({ where: { ...where, eventType: 'cta.clicked' } }),
-  ]);
-
-  return { views, starts, completes, leads, ctaClicks };
 }

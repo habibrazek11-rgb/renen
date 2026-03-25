@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { getSession } from '@/lib/auth/session';
+import staticDb from '@/lib/static-db';
 
 export async function GET(request: Request) {
   const session = await getSession();
@@ -10,28 +10,12 @@ export async function GET(request: Request) {
   const funnelId = searchParams.get('funnelId');
   const format = searchParams.get('format');
 
-  const leads = await db.lead.findMany({
-    where: {
-      workspaceId: session.workspaceId,
-      ...(funnelId ? { funnelId } : {}),
-    },
-    include: {
-      funnel: { select: { name: true, slug: true } },
-      segment: { select: { name: true } },
-      submissions: {
-        include: { snapshot: true },
-        orderBy: { createdAt: 'desc' },
-        take: 1,
-      },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  const leads = staticDb.getLeads(session.workspaceId, funnelId);
 
-  // CSV export
   if (format === 'csv') {
     const rows = [
       ['ID', 'Email', 'Name', 'Funnel', 'Segment', 'Score', 'Tier', 'Created At'],
-      ...leads.map((l: (typeof leads)[number]) => [
+      ...leads.map(l => [
         l.id,
         l.email ?? '',
         l.name ?? '',
@@ -39,10 +23,10 @@ export async function GET(request: Request) {
         l.segment?.name ?? '',
         l.submissions[0]?.snapshot?.totalScore?.toString() ?? '',
         l.submissions[0]?.snapshot?.tier ?? '',
-        l.createdAt.toISOString(),
+        l.createdAt,
       ]),
     ];
-    const csv = rows.map((r: string[]) => r.map((c: string) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv',

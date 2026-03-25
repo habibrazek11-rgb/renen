@@ -1,4 +1,5 @@
-import { db } from '@/lib/db';
+import staticDb from '@/lib/static-db';
+import { resultPages, ctaConfigs, scoreCategories } from '@/lib/static-db';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -13,32 +14,23 @@ export default async function ResultPage({
 }) {
     const { slug, submissionId } = await params;
 
-    const submission = await db.submission.findUnique({
-        where: { id: submissionId },
-        include: {
-            lead: true,
-            snapshot: true,
-            funnelVersion: {
-                include: {
-                    funnel: true,
-                    assessment: { include: { scoreCategories: true } },
-                },
-            },
-        },
-    });
-
+    const submission = staticDb.getSubmissionById(submissionId);
     if (!submission || !submission.snapshot) notFound();
 
     const snapshot = submission.snapshot;
-    const funnel = submission.funnelVersion.funnel;
-    const categories = submission.funnelVersion.assessment?.scoreCategories ?? [];
+    const funnel = submission.funnelVersion?.funnel as { id: string; name: string; workspaceId?: string } | null;
+    if (!funnel) notFound();
 
-    // Get segment result page + CTA
+    // Get categories for breakdown
+    const categories = scoreCategories.filter(c => c.assessmentId === 'assess-demo-1');
+
+    // Get result page + CTA from static store
     const resultPage = snapshot.segmentId
-        ? await db.resultPage.findUnique({
-            where: { segmentId: snapshot.segmentId },
-            include: { ctaConfig: true },
-        })
+        ? (() => {
+            const rp = resultPages.find(p => p.segmentId === snapshot.segmentId) ?? null;
+            if (!rp) return null;
+            return { ...rp, ctaConfig: ctaConfigs.find(c => c.resultPageId === rp.id) ?? null };
+          })()
         : null;
 
     // Log result view
@@ -51,7 +43,7 @@ export default async function ResultPage({
     }).catch(() => { });
 
     const categoryScores = snapshot.categoryScores as Record<string, number>;
-    const maxScoreTotal = categories.reduce((sum: number, c: { maxScore: number }) => sum + c.maxScore, 0);
+    const maxScoreTotal = categories.reduce((sum, c) => sum + c.maxScore, 0);
     const percentage = maxScoreTotal > 0 ? Math.round((snapshot.totalScore / maxScoreTotal) * 100) : 0;
 
     const primary = '#ff36a2';

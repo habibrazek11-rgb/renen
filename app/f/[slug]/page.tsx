@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import staticDb from '@/lib/static-db';
 import { notFound } from 'next/navigation';
 import { cookies } from 'next/headers';
 import { generateAnonymousId, getVariant } from '@/lib/services/ab-testing';
@@ -10,20 +10,11 @@ import { CheckCircle, ArrowRight, Sparkles } from 'lucide-react';
 export default async function FunnelLandingPage({ params }: { params: Promise<{ slug: string }> }) {
     const { slug } = await params;
 
-    const funnel = await db.funnel.findUnique({
-        where: { slug },
-        include: {
-            versions: {
-                where: { isPublished: true, isDraft: false },
-                orderBy: { version: 'desc' },
-                take: 1,
-            },
-        },
-    });
+    const funnel = staticDb.getFunnelBySlug(slug);
+    if (!funnel) notFound();
 
-    if (!funnel || funnel.versions.length === 0) notFound();
-
-    const version = funnel.versions[0];
+    const version = staticDb.getLatestPublishedVersion(funnel.id);
+    if (!version) notFound();
 
     // Get or create anonymous ID
     const cookieStore = await cookies();

@@ -1,5 +1,4 @@
 import { getSession } from '@/lib/auth/session';
-import { db } from '@/lib/db';
 import { redirect, notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
