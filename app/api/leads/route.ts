@@ -31,7 +31,7 @@ export async function GET(request: Request) {
   if (format === 'csv') {
     const rows = [
       ['ID', 'Email', 'Name', 'Funnel', 'Segment', 'Score', 'Tier', 'Created At'],
-      ...leads.map((l) => [
+      ...leads.map((l: (typeof leads)[number]) => [
         l.id,
         l.email ?? '',
         l.name ?? '',
@@ -42,7 +42,7 @@ export async function GET(request: Request) {
         l.createdAt.toISOString(),
       ]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const csv = rows.map((r: string[]) => r.map((c: string) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
     return new Response(csv, {
       headers: {
         'Content-Type': 'text/csv',
