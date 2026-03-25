@@ -4,6 +4,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import type { SessionPayload } from './types';
+export type { SessionPayload };
 
 const COOKIE_NAME = 'renen_session';
 const SIGNED_OUT_COOKIE = 'renen_signed_out';
